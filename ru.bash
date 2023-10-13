@@ -39,9 +39,12 @@ function ru() {
 	local printpath=0
 
 	if (( $# == 0 )); then
-	    ls $HOME/ru
+	    #echo "Try ru --help for more, but here are the existing jos:"
+		ls $HOME/ru
+		#echo "Ro arguments: $allsubcommands"
 	    return 0
 	fi
+
 
 	while :
 	do
@@ -65,7 +68,7 @@ function ru() {
 		    	echo "Listing rus:"
 	     		for FILE in $HOME/ru/*;
 	       		do
-		        	echo $FILE;
+		        	echo $(basename -- $FILE): 
 		         	cat $FILE;
 	                done
 			return 0
@@ -144,32 +147,16 @@ function ru() {
 		return 0;
 	fi
 
-	if (( list > 0 )); then
-	    	echo "Listing rus:"
-     		for FILE in $HOME/ru/*;
-       		do
-	        	echo $FILE;
-	         	cat $FILE;
-                done
-		#local lsjos=$(ls $HOME/ru)
-		#if [[ "$lsjos" ]]; then
-		#   echo $lsjos
-		#else
-		   echo There are not yet any rus. try for example: ru --add foo ls -al
-		#fi
-		return 0
-	fi
-
 	local file=$HOME/ru/"$1"
 	if [ -f "$file" ]; then
-		local fullpath=$(cat $file)
+		local fullcmd=$(cat $file)
 		if [[ "$printpath" -eq 1 ]];
 		then
-		    printf "%s" $fullpath
+		    printf "%s" $fullcmd
 		    return 0
 		fi
-    		echo "$fullpath"
-    		eval "time $fullpath"
+    		echo "$fullcmd"
+    		eval "time $fullcmd"
 	else
 	 	local possible=$(ls $HOME/ru | grep $1)
                 if [[ $possible ]]; then
