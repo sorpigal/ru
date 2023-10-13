@@ -9,7 +9,8 @@ complete -F myrucompletion ru
 
 function ru() {
 ####################################################################
-# ru - a bash function that lets you save/run commands
+# ru - a bash function that lets you save/run commands (kind of
+# like a new set of aliases)
 # It is similar to jo (https://github.com/relipse/jojumpoff_bash_function)
 #
 # HOW IT WORKS:
