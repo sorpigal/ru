@@ -42,9 +42,9 @@ function ru() {
 	local printpath=0
 
 	if (( $# == 0 )); then
-	    #echo "Try ru --help for more, but here are the existing jos:"
+	    #echo "Try ru --help for more, but here are the existing rus:"
 		ls $HOME/ru
-		#echo "Ro arguments: $allsubcommands"
+		#echo "ru arguments: $allsubcommands"
 	    return 0
 	fi
 
