@@ -5,6 +5,13 @@ function ru() {
 #
 # HOW IT WORKS:
 #    Files are stored in $HOME/ru directory ($HOME/ru more precisely)
+# INSTALL
+# 1. mkdir ~/ru
+# 2. Copy this whole function up until ##endru into your ~/.bashrc
+# 3. source ~/.bashrc
+# 4. ru -a <sn> <cmd>
+# 5. For example: ru -a lsal "ls -al"
+# 6. ru lsal
 #
 # @author relipse
 # @license Dual License: Public Domain and The MIT License (MIT)
