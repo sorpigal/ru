@@ -1,171 +1,395 @@
-myrucompletion () {
-        local f;
-        for f in ~/ru/"$2"*;
-        do [[ -f $f ]] && COMPREPLY+=( "${f##*/}" );
-        done
-}
+#!/bin/bash
 
-complete -F myrucompletion ru
-
-function ru() {
-####################################################################
-# ru - a bash function that lets you save/run commands (kind of
-# like a new set of aliases)
+#############################################################################
+# ru - a utility that lets you save/run commands (kind of like a new set of 
+# aliases)
 # @see https://github.com/relipse/ru
 #
 # It is similar to jo (https://github.com/relipse/jojumpoff_bash_function)
 #
 # HOW IT WORKS:
-#    Files are stored in $HOME/ru directory ($HOME/ru more precisely)
+#    Files are stored in ~/.ru
+#
 # INSTALL
-# 1. mkdir ~/ru
-# 2. Copy this whole function up until ##endru into your ~/.bashrc
-# 3. source ~/.bashrc
+# 1. chmod a+x this script
+# 2. Copy this script to a directory in your PATH
+# 3. For command completion add this to your ~/.bashrc:
+#     eval "$(ru --bash-completion)"
 # 4. ru -a <sn> <cmd>
-# 5. For example: ru -a lsal "ls -al"
+# 5. For example: ru -a lsal ls -al
 # 6. ru lsal
+#
+#
+# BUGS
+#   Currently --verbose doesn't do anything.
 #
 # @author relipse
 # @license Dual License: Public Domain and The MIT License (MIT)
 #        (Use either one, whichever you prefer)
 # @version 1.2
 ####################################################################
-	# Reset all variables that might be set
-	local verbose=0
-	local list=0
-	local rem=""
-	local add=0
-	local addcmd=""
-    	local allsubcommands="--list -l, --add -a, --help -h ?, -r -rm"
-	local mkdirp=""
-	local mkdircount=0
-	local printpath=0
 
-	if (( $# == 0 )); then
-	    #echo "Try ru --help for more, but here are the existing rus:"
-		ls $HOME/ru
-		#echo "ru arguments: $allsubcommands"
-	    return 0
-	fi
+# external command depenencies:
+#	cat
+#	rm
 
+usage () {
+	cat <<HELP
+Usage: $(appname) [-s COMMAND] | -l | -ar SHORTNAME
+save and then later run commands
 
-	while :
-	do
-	    case $1 in
-	        -h | --help | -\?)
-	            #  Call your Help() or usage() function here.
-	            echo "Usage: ru <foo>, where <foo> is a file in $HOME/ru/ containing the full directory path."
-	            echo "Ru Command line arguments:"
-	            echo "    <foo>                  - run command stored in contents of file $HOME/ru/<foo> (normal usage) "
-	            echo "    --show|-s <foo>        - echo command"
-	            echo "    --list|-l              - show run files with commands"
-	            echo "    --add|-a <sn> [<path>] - add/replace <sn> shortname to $HOME/ro with jump path <path> or current dir if not provided."
-	            echo "    --rm|-r <sn>           - remove/delete short link."
-	            return 0      # This is not an error, User asked help. Don't do "exit 1"
-	            ;;
-	        -s | --show)
-	            printpath=1
-	            shift
-	            ;;
-	        -l | --list)
-		    	echo "Listing rus:"
-	     		for FILE in $HOME/ru/*;
-	       		do
-		        	echo $(basename -- $FILE): 
-		         	cat $FILE;
-	                done
-			return 0
-			;;
-		-r | -rm | --rm)
-			 if [[ -n $2 ]]; then
-				rem=$2
-			 else
-				echo Invalid usage. Correct usage is: ru --rm '<sn>'
-				return 0
-			 fi
-			 shift 1
-			 ;;
-    		 -a | --add)
-    		    if [[ -n $2 ]]; then
-	              add=$2     # You might want to check if you really got FILE
-	            else
-	            	echo Invalid usage. Correct usage is: ru --add '<sn> <cmd>'
-	            	return 0
-	            fi
-	            if  [[ -n $3 ]]; then
-	            	addcmd=$3
-	            	shift 1
-	            fi
-	            shift 2
-	            ;;
-        	--add=*)
-	            add=${1#*=}        # Delete everything up till "="
-	            #by default add current pwd, if not given
-	            if [[ -n $3 ]]; then
-	            	addcmd=$3
-	            	shift 1
-	            fi
-	            shift 1
-            ;;
-	        -v | --verbose)
-	            # Each instance of -v adds 1 to verbosity
-	            verbose=$((verbose+1))
-	            shift
-	            ;;
-	        --) # End of all options
-	            shift
-	            break
-	            ;;
-	        -*)
-	            echo "WARN: Unknown option (ignored): $1" >&2
-	            shift
-	            ;;
-	        *)  # no more options. Stop while loop
-	            break
-	            ;;
-	    esac
-	done
+  -s|--show COMMAND         run saved command named by COMMAND
+  -l|--list                 list available commands
+  -a|--add SHORTNAME [PATH] add shortname to $ruconfdir with jump path
+                            PATH (or current dir if not provided)
+  -r|--rm SHORTNAME         remove/delete short link
+      --bash-completion     eval-able code t set up completion
+  -v|--verbose              produce more messages
+      --version             display version information and exit
+  -h  --help                display this help text and exit
 
-	if [[ "$rem" ]]; then
-		if [ -f $HOME/ru/"$rem" ]; then
-			echo "Removing $rem -> $(cat $HOME/ru/$rem)"
-			rm $HOME/ru/"$rem"
-		else
-			echo "$rem does not exist"
-			local possible=$(ls $HOME/ru | grep $rem)
-			if [[ $possible ]]; then
-				echo Did you mean: $possible
+All arguments after -a are part of the command unless an argument consisting
+of ';' is specified, which ends slurping of arguments for the -a switch.
+
+Example of saving a command:
+	ru -a lsal ls -al
+
+Example of invoking a saved command:
+	ru lsal
+	ru lsal /tmp
+	ru lsal -- -h /tmp
+
+Notice that if additional saved command arguments start with - they will need
+to be given after -- to prevent $(appname) from detecting them.
+HELP
+}
+
+version () {
+	cat <<VERSION
+$(appname): version 1.2
+VERSION
+}
+
+stderr () {
+	# shellcheck disable=SC2059
+	printf "$@" 1>&2
+}
+
+appname () {
+	printf '%s\n' "${BASH_SOURCE[0]##*/}"
+}
+
+try-help () {
+	usage | head -n 1
+	printf "Try '%s --help' for more information.\n" "$(appname)"
+}
+
+unrecognized-option () {
+	printf	"%s: unrecognized option '%s'\n"  "$(appname)" "$1"
+	try-help
+}
+
+if ! command -v fold >/dev/null; then
+	# polyfill: a subset of fold with just enough functionality
+	fold () {
+		local width=80 str
+
+		while [[ ${#@} -gt 0 ]] ; do
+			case "$1" in
+				-w|--width)
+					shift
+					width="$1"
+				;;
+				-w*)
+					width="${1:2}"
+				;;
+				*)
+					break
+				;;
+			esac
+			shift
+		done
+
+		if read -t 0 -u 0; then
+			while IFS= read -u 0 -r -n "$width" str ; do
+				if [[ ${#str} -eq 0 ]]; then
+					break
+				fi
+				printf '%s\n' "$str"
+			done
+		fi
+	}
+fi
+
+if ! command -v head >/dev/null; then
+	head () {
+		local lines=10 line
+		while [[ ${#@} -gt 0 ]] ; do
+			case "$1" in
+				-n|--lines)
+					shift
+					lines="$1"
+				;;
+				-n*)
+					lines="${1:2}"
+				;;
+				*)
+					break
+				;;
+			esac
+			shift
+		done
+
+		# of course this can block forever, but it won't
+		while IFS=$'\n' read -u 0 -r line ; do
+			if ((lines-- == 0)); then
+				break
 			fi
-		fi
-		return 0;
-	fi
+			printf '%s\n' "$line"
+		done
+	}
+fi
 
-	if  [[ "$addcmd" ]]; then
-		echo "$addcmd" > $HOME/ru/"$add"
-		if [ -f $HOME/ru/"$add" ]; then
-			echo "$add - $addcmd added, try: ru $add"
-		else
-			echo "problem adding $add"
-		fi
-		return 0;
-	fi
 
-	local file=$HOME/ru/"$1"
-	if [ -f "$file" ]; then
-		local fullcmd=$(cat $file)
-		if [[ "$printpath" -eq 1 ]];
-		then
-		    printf "%s" $fullcmd
-		    return 0
-		fi
-    		echo "$fullcmd"
-    		eval "time $fullcmd"
+ru-bash-completion () {
+	local commands=(RUCONFDIR/*)
+	COMPREPLY+=("${commands[@]##*/}")
+}
+
+setup-completion () {
+	local fn=$(declare -pf ru-bash-completion)
+	fn="${fn/RUCONFDIR/$ruconfdir}"
+	printf '%s\ncomplete -F ru-bash-completion %s\n' "$fn" "$(appname)"
+}
+
+list () {
+	local file fullcommand
+	for file in "$ruconfdir"/*; do
+		printf '%s\n' "${file##*/}"
+		printf '\t%s\n' "$(show-full-command "$file")"
+	done
+}
+
+show-full-command () {
+	local command="$1" fullcommand
+	mapfile -t fullcommand < "$command"
+	fullcommand=("${fullcommand[@]:1}")
+	printf '%s\n' "${fullcommand[*]%' "$@"'}"
+}
+
+list-possible-commands () {
+	local command possible
+	if (( $# )); then
+		for command; do
+			possible=("$ruconfdir"/*"$commmand"*)
+			if (( ${#possible[@]} )); then
+				printf 'Did you mean %s\n' "${possible[@]##*/}"
+			fi
+		done
 	else
-	 	local possible=$(ls $HOME/ru | grep $1)
-                if [[ $possible ]]; then
-                        echo Did you mean: $possible
-                fi
-		#ls $HOME/ru | grep $1
+		possible=("$ruconfdir"/*)
+		printf '%s\n' "${possible[@]##*/}"
 	fi
 }
-###############################################################endru
+
+remove () {
+	local path
+	for command; do
+		path="$ruconfdir/$command"
+		if ! [[ -f $path ]]; then
+			stderr '%s: no such saved command: %s\n' "$(appname)" "$command"
+			list-possible-commands "$command" 1>&2
+			continue
+		fi
+		printf 'Removing %s -> %s\n' "$command" "$(show-full-command "$path")"
+		rm -f -- "$path"
+	done
+}
+
+add () {
+	local command="$1"
+	shift
+
+	ensure-confdir || return $?
+
+	local command_path="$ruconfdir"/"$command"
+	if printf '#!/bin/bash\n%s "$@"\n' "$*" > "$command_path"; then
+		chmod a+x "$command_path"
+		printf '%s - %s added, try ru %s\n' "$command" "$*" "$command"
+	else
+		stderr '%s: problem adding %s\n' "$(appname)" "$command"
+		return 1
+	fi
+}
+
+ensure-confdir () {
+	local rc
+	mkdir -p "$ruconfdir" || {
+		rc=$?
+		stderr '%s: unable to create %s\n' "$(appname)" "$ruconfdir"
+		return "$rc"
+	}
+}
+
+run-command () {
+	local command="$1" cmd_path
+	shift
+	cmd_path="$ruconfdir/$command"
+	if [[ -f $cmd_path ]]; then
+		if (( printpath )); then
+			printf '%s %s\n' "$cmd_path" "$*"
+		else
+			time "$cmd_path" "$@"
+		fi
+	else
+		list-possible-commands "$command"
+		return 1
+	fi
+}
+
+# expand * to nothing if there are no matches
+shopt -s nullglob
+
+ruconfdir=~/.ru
+printpath=
+list=
+remove=()
+add=
+add_command=()
+setup_completion=
+verbose=0
+version=
+help=
+
+if ! (( $# )); then
+	try-help 1<&2
+	list-possible-commands 1>&2
+	exit 1
+fi
+
+no_more_options=
+non_option_args=()
+while (( $# )); do
+	if (( no_more_options )) ; then
+		non_option_args+=("$1")
+		shift
+		continue
+	fi
+	case "$1" in
+		-s|--show)
+			printpath=1
+		;;
+		-l|--list)
+			list=1
+		;;
+		-r|--rm)
+			shift
+			remove+=("$1")
+		;;
+		-a|--add)
+			shift
+			if [[ -n $add ]]; then
+				stderr '%s: --add may not be specified more than once\n' "$(appname)"
+				exit 2
+			fi
+			if [[ -z $1 ]]; then
+				stderr '%s: invalid use of --add\n'
+				try-help
+				exit 2
+			fi
+			add=$1
+			shift
+			if [[ -z $1 ]]; then
+				stderr '%s: --add requires at least two parameters\n'
+				try-help
+				exit 2
+			fi
+			for cmdarg; do
+				if [[ $cmdarg == ';' ]]; then
+					shift
+					break
+				fi
+				add_command+=("$cmdarg")
+				shift
+			done
+		;;
+		--bash-completion)
+			setup_completion=1
+		;;
+		-v|--verbose)
+			((verbose++))
+		;;
+		-h|--help|'-?')
+			help=1
+		;;
+		--version)
+			version=1
+		;;
+		# example of accepting a switch of the form --key value
+		#--key)
+		#	shift; key="$1"
+		#;;
+		# example of accepting a switch of the form --key=value
+		# --key=*)
+		#	IFS='=' read -r _ key <<<"$1"; shift
+
+		--)
+			no_more_options=1
+		;;
+		--*)
+			unrecognized-option "$1"
+			exit 1
+		;;
+		-*)
+			if [[ -z $unbundled ]] ; then
+				# unbundle short options
+				mapfile -t short < <(fold -w 1 <<<"${1:1}")
+				set -- "${short[@]/#/-}" "${@:2}"
+				unset short
+				unbundled=1
+				continue
+			else
+				unrecognized-option "$1"
+				exit 1
+			fi
+		;;
+		*)
+			non_option_args+=("$1")
+		;;
+	esac
+	shift
+	unset unbundled
+done
+
+if (( help )); then
+	usage
+	exit 0
+fi
+
+if (( version )) ; then
+	version
+	exit 0
+fi
+
+if (( setup_completion )); then
+	setup-completion
+	exit 0
+fi
+
+if (( list )); then
+	list
+	exit 0
+fi
+
+if (( ${#remove[@]} )); then
+	remove "${remove[@]}"
+fi
+
+if [[ -n $add ]]; then
+	add "$add" "${add_command[@]}" || exit $?
+fi
+
+if (( ${#non_option_args[@]} )); then
+	# user requested to run a saved command
+	run-command "${non_option_args[@]}"
+fi
