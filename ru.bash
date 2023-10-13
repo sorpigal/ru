@@ -1,3 +1,12 @@
+myrucompletion () {
+        local f;
+        for f in ~/ru/"$2"*;
+        do [[ -f $f ]] && COMPREPLY+=( "${f##*/}" );
+        done
+}
+
+complete -F myrucompletion ru
+
 function ru() {
 ####################################################################
 # ru - a bash function that lets you save/run commands
