@@ -25,7 +25,7 @@ function ru() {
 # @author relipse
 # @license Dual License: Public Domain and The MIT License (MIT)
 #        (Use either one, whichever you prefer)
-# @version 1.1
+# @version 1.2
 ####################################################################
 	# Reset all variables that might be set
 	local verbose=0
@@ -39,12 +39,9 @@ function ru() {
 	local printpath=0
 
 	if (( $# == 0 )); then
-	    #echo "Try ru --help for more, but here are the existing jos:"
-		ls $HOME/ru
-		#echo "Ro arguments: $allsubcommands"
+	    ls $HOME/ru
 	    return 0
 	fi
-
 
 	while :
 	do
