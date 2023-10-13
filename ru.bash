@@ -55,7 +55,7 @@ function ru() {
 	            echo "Ru Command line arguments:"
 	            echo "    <foo>                  - run command stored in contents of file $HOME/ru/<foo> (normal usage) "
 	            echo "    --show|-s <foo>        - echo command"
-	            echo "    --list|-l              - show run files, (same as 'ls $HOME/ru') "
+	            echo "    --list|-l              - show run files with commands"
 	            echo "    --add|-a <sn> [<path>] - add/replace <sn> shortname to $HOME/ro with jump path <path> or current dir if not provided."
 	            echo "    --rm|-r <sn>           - remove/delete short link."
 	            return 0      # This is not an error, User asked help. Don't do "exit 1"
@@ -65,18 +65,23 @@ function ru() {
 	            shift
 	            ;;
 	        -l | --list)
-				echo $(ls $HOME/ru)
+		    	echo "Listing rus:"
+	     		for FILE in $HOME/ru/*;
+	       		do
+		        	echo $FILE;
+		         	cat $FILE;
+	                done
+			return 0
+			;;
+		-r | -rm | --rm)
+			 if [[ -n $2 ]]; then
+				rem=$2
+			 else
+				echo Invalid usage. Correct usage is: ru --rm '<sn>'
 				return 0
-				;;
-			 -r | -rm | --rm)
-				 if [[ -n $2 ]]; then
-				 	rem=$2
-				 else
-				 	echo Invalid usage. Correct usage is: ru --rm '<sn>'
-				 	return 0
-				 fi
-				 shift 1
-				 ;;
+			 fi
+			 shift 1
+			 ;;
     		 -a | --add)
     		    if [[ -n $2 ]]; then
 	              add=$2     # You might want to check if you really got FILE
