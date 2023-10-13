@@ -143,13 +143,18 @@ function ru() {
 	fi
 
 	if (( list > 0 )); then
-	    echo "Listing rus:"
-		local lsjos=$(ls $HOME/ru)
-		if [[ "$lsjos" ]]; then
-		   echo $lsjos
-		else
+	    	echo "Listing rus:"
+     		for FILE in $HOME/ru/*;
+       		do
+	        	echo $FILE;
+	         	cat $FILE;
+                done
+		#local lsjos=$(ls $HOME/ru)
+		#if [[ "$lsjos" ]]; then
+		#   echo $lsjos
+		#else
 		   echo There are not yet any rus. try for example: ru --add foo ls -al
-		fi
+		#fi
 		return 0
 	fi
 
