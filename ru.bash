@@ -1,7 +1,7 @@
 function ru() {
 ####################################################################
 # ru - a bash function that lets you save/run commands
-# It is similar to jo
+# It is similar to jo (https://github.com/relipse/jojumpoff_bash_function)
 #
 # HOW IT WORKS:
 #    Files are stored in $HOME/ru directory ($HOME/ru more precisely)
@@ -9,15 +9,15 @@ function ru() {
 # @author relipse
 # @license Dual License: Public Domain and The MIT License (MIT)
 #        (Use either one, whichever you prefer)
-# @version 1.0
+# @version 1.1
 ####################################################################
 	# Reset all variables that might be set
 	local verbose=0
 	local list=0
 	local rem=""
 	local add=0
-	local adddir=""
-    local allsubcommands="--list -l, --add -a, --help -h ?, -r -rm, -p --mkp"
+	local addcmd=""
+    	local allsubcommands="--list -l, --add -a, --help -h ?, -r -rm"
 	local mkdirp=""
 	local mkdircount=0
 	local printpath=0
@@ -37,7 +37,7 @@ function ru() {
 	            #  Call your Help() or usage() function here.
 	            echo "Usage: ru <foo>, where <foo> is a file in $HOME/ru/ containing the full directory path."
 	            echo "Ru Command line arguments:"
-	            echo "    <foo> or <foo>/more/path - cd to dir stored in contents of file $HOME/ru/<foo> (normal usage) "
+	            echo "    <foo>                  - run command stored in contents of file $HOME/ru/<foo> (normal usage) "
 	            echo "    --show|-s <foo>        - echo command"
 	            echo "    --list|-l              - show run files, (same as 'ls $HOME/ru') "
 	            echo "    --add|-a <sn> [<path>] - add/replace <sn> shortname to $HOME/ro with jump path <path> or current dir if not provided."
@@ -62,23 +62,15 @@ function ru() {
 				 shift 1
 				 ;;
     		 -a | --add)
-    		 	if [[ -n $2 ]]; then
+    		    if [[ -n $2 ]]; then
 	              add=$2     # You might want to check if you really got FILE
 	            else
-	            	echo Invalid usage. Correct usage is: ru --add '<sn> [<path>]'
+	            	echo Invalid usage. Correct usage is: ru --add '<sn> <cmd>'
 	            	return 0
 	            fi
-
-	            #by default add current pwd, if not given
 	            if  [[ -n $3 ]]; then
-	            	adddir=$3
+	            	addcmd=$3
 	            	shift 1
-	            else
-	            	adddir=$(pwd)
-	            fi
-
-	            if [ ! -d $adddir ]; then
-	            	echo "Warning: directory $adddir does not exist."
 	            fi
 	            shift 2
 	            ;;
@@ -86,14 +78,8 @@ function ru() {
 	            add=${1#*=}        # Delete everything up till "="
 	            #by default add current pwd, if not given
 	            if [[ -n $3 ]]; then
-	            	adddir=$3
+	            	addcmd=$3
 	            	shift 1
-	            else
-	            	adddir=$(pwd)
-	            fi
-
-	            if [ ! -d $adddir ]; then
-	             	echo "Warning: directory $adddir does not exist."
 	            fi
 	            shift 1
             ;;
@@ -116,29 +102,29 @@ function ru() {
 	    esac
 	done
 
-    if [[ "$rem" ]]; then
-        if [ -f $HOME/ru/"$rem" ]; then
-        	echo "Removing $rem -> $(cat $HOME/ru/$rem)"
-        	rm $HOME/ru/"$rem"
-        else
-         	echo "$rem does not exist"
-         	local possible=$(ls $HOME/ru | grep $rem)
-	    	if [[ $possible ]]; then
-	    		echo Did you mean: $possible
-	    	fi
-        fi
-        return 0;
-    fi
+	if [[ "$rem" ]]; then
+		if [ -f $HOME/ru/"$rem" ]; then
+			echo "Removing $rem -> $(cat $HOME/ru/$rem)"
+			rm $HOME/ru/"$rem"
+		else
+			echo "$rem does not exist"
+			local possible=$(ls $HOME/ru | grep $rem)
+			if [[ $possible ]]; then
+				echo Did you mean: $possible
+			fi
+		fi
+		return 0;
+	fi
 
-    if  [[ "$adddir" ]]; then
-        echo "$adddir" > $HOME/ru/"$add"
-        if [ -f $HOME/ru/"$add" ]; then
-        	echo "$add - $adddir added, try: ru $add"
-        else
-         	echo "problem adding $add"
-        fi
-        return 0;
-    fi
+	if  [[ "$addcmd" ]]; then
+		echo "$addcmd" > $HOME/ru/"$add"
+		if [ -f $HOME/ru/"$add" ]; then
+			echo "$add - $addcmd added, try: ru $add"
+		else
+			echo "problem adding $add"
+		fi
+		return 0;
+	fi
 
 	if (( list > 0 )); then
 	    echo "Listing rus:"
