@@ -336,7 +336,7 @@ inline-ru () {
 	if (( $? == 99 )); then
 		cd "$path" || $?
 	else
-		printf '%s\n' "$output"
+		printf '%s' "$output"
 	fi
 }
 
