@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #############################################################################
-# ru - a utility that lets you save/run commands (kind of like a new set of 
+# ru - a utility that lets you save/run commands (kind of like a new set of
 # aliases)
 # @see https://github.com/relipse/ru
 #
@@ -30,44 +30,48 @@
 ####################################################################
 
 # external command depenencies:
-#	cat
 #	rm
 
-usage () {
-	cat <<HELP
-Usage: $(appname) [-s COMMAND] | -l | -ar SHORTNAME
-save and then later run commands
+# exit code cheatsheet:
+#	1 - argument parse error
+#	2 - general failure
+#	3 - command not found
+#	4 - command name collision
 
-  -s|--show COMMAND         run saved command named by COMMAND
+usage () {
+	printf '%s\n' "Usage: $(appname) [-ars] NAME COMMAND [COMMAND-ARG...]
+save commands by name and then later run them
+
+  -s|--show NAME            run saved command named by NAME
   -l|--list                 list available commands
-  -a|--add SHORTNAME [PATH] add shortname to $ruconfdir with jump path
-                            PATH (or current dir if not provided)
-  -r|--rm SHORTNAME         remove/delete short link
-      --bash-completion     eval-able code t set up completion
+  -a|--add NAME COMMAND     add NAME as a shortcut for COMMAND
+  -c|--cd NAME PATH         save NAME a a shortcut for changing to PATH
+  -p|--mkdir                when running a command added with -c, create the
+                            directory if it does not exist
+  -r|--rm NAME              remove/delete saved shortcut
+  -t|--time                 time the runtime of the command
+      --bash-completion     eval-able code to set up completion
+      --setup-cd            eval-able code to make --cd commands work
   -v|--verbose              produce more messages
-      --version             display version information and exit
+  -V|--version              display version information and exit
   -h  --help                display this help text and exit
 
-All arguments after -a are part of the command unless an argument consisting
-of ';' is specified, which ends slurping of arguments for the -a switch.
+Arguments following -a NAME are part of the command to be saved, but if one
+of the arguments is ';' it ends the command instead and any remaining
+arguments are processed as usual.
 
-Example of saving a command:
-	ru -a lsal ls -al
+If you wish to pass extra arguments to a saved command at run time they will
+be added to the end of the saved command line. If the arguments begin with
+a - character you must specify -- before those arguments so they are not
+interpreted as arguments to $(appname).
 
-Example of invoking a saved command:
-	ru lsal
-	ru lsal /tmp
-	ru lsal -- -h /tmp
-
-Notice that if additional saved command arguments start with - they will need
-to be given after -- to prevent $(appname) from detecting them.
-HELP
+Switches can be specified in any combination and order, but --add cannot be
+specified more than once in a single invocation.
+"
 }
 
 version () {
-	cat <<VERSION
-$(appname): version 1.2
-VERSION
+	printf '%s: version 1.2\n' "$(appname)"
 }
 
 stderr () {
@@ -157,7 +161,8 @@ ru-bash-completion () {
 }
 
 setup-completion () {
-	local fn=$(declare -pf ru-bash-completion)
+	local fn
+	fn=$(declare -pf ru-bash-completion)
 	fn="${fn/RUCONFDIR/$ruconfdir}"
 	printf '%s\ncomplete -F ru-bash-completion %s\n' "$fn" "$(appname)"
 }
@@ -193,33 +198,81 @@ list-possible-commands () {
 }
 
 remove () {
-	local path
+	local path rc=0
 	for command; do
 		path="$ruconfdir/$command"
 		if ! [[ -f $path ]]; then
 			stderr '%s: no such saved command: %s\n' "$(appname)" "$command"
 			list-possible-commands "$command" 1>&2
+			rc="$e_bad_command"
 			continue
 		fi
-		printf 'Removing %s -> %s\n' "$command" "$(show-full-command "$path")"
+		if (( verbose > 1 )); then
+			printf 'Removing %s -> %s\n' "$command" "$(show-full-command "$path")"
+		elif (( verbose > 0 )); then
+			printf 'removed %s\n' "$command"
+		fi
 		rm -f -- "$path"
 	done
+	return "$rc"
 }
 
 add () {
+	ensure-confdir || return $?
+
+	local command args=() arg
+	for arg; do
+		if [[ -z $command ]]; then
+			command="$arg"
+		elif [[ $arg == ';' ]]; then
+			add-one "$command" "${args[@]}"
+			unset command args
+		else
+			args+=("$arg")
+		fi
+	done
+	if (( ${#args[@]} )); then
+		add-one "$command" "${args[@]}"
+	fi
+}
+
+add-one () {
 	local command="$1"
 	shift
 
-	ensure-confdir || return $?
-
 	local command_path="$ruconfdir"/"$command"
+
+	if [[ -f $command_path ]]; then
+		stderr '%s: saved command %s already exists\n' "$(appname)" "$command"
+		stderr 'to add a command with this name first remove the existing one by running\n\t%s --rm %s\n' "$(appname)" "$command"
+		return "$e_command_exists"
+	fi
+
 	if printf '#!/bin/bash\n%s "$@"\n' "$*" > "$command_path"; then
 		chmod a+x "$command_path"
-		printf '%s - %s added, try ru %s\n' "$command" "$*" "$command"
+		if (( verbose > 2 )); then
+			printf '%s - %s addedtry ru %s\n' "$command" "$*" "$command"
+		elif (( verbose > 1 )); then
+			printf 'added %s: %s\n' "$command" "$*"
+		elif (( verbose > 0 )); then
+			printf 'added %s\n' "$command"
+		fi
 	else
 		stderr '%s: problem adding %s\n' "$(appname)" "$command"
-		return 1
+		return "$e_fail"
 	fi
+}
+
+add-path () {
+	local command path
+	for path; do
+		if [[ -z $command ]];then
+			command="$path"
+		else
+			printf '%s\n' "$path" > "$ruconfdir/$command"
+			unset command
+		fi
+	done
 }
 
 ensure-confdir () {
@@ -232,39 +285,90 @@ ensure-confdir () {
 }
 
 run-command () {
-	local command="$1" cmd_path
+	local command="$1" cmd_path rc path
 	shift
 	cmd_path="$ruconfdir/$command"
-	if [[ -f $cmd_path ]]; then
-		if (( printpath )); then
+	if [[ -x $cmd_path ]]; then
+		# command
+		if (( show )); then
 			printf '%s %s\n' "$cmd_path" "$*"
 		else
-			time "$cmd_path" "$@"
+			if (( time )); then
+				time "$cmd_path" "$@"
+			else
+				"$cmd_path" "$@"
+			fi
+		fi
+	elif [[ -f $cmd_path ]]; then
+		# non-excutable directory path
+		path="$(<"$cmd_path")"
+		if (( show )); then
+			printf '%s cd %s\n' "$command" "$path"
+		else
+			if (( mkdir )); then
+				# mkdir may fail if e.g. the target path exists
+				# and is a non-dir
+				mkdir -p "$path" 2>/dev/null || {
+					rc=$?
+					stderr '%s: unable to auto-create %s\n' "$path"
+					return "$rc"
+				}
+			fi
+
+			# the path might be relative. If it is then cd will
+			# fail later.
+			printf '%s\n' "$path"
+			return 99
 		fi
 	else
-		list-possible-commands "$command"
-		return 1
+		list-possible-commands "$command" 1>&2
+		return "$e_bad_command"
 	fi
 }
 
-# expand * to nothing if there are no matches
+# wrapper to make --cd commands appear to work
+inline-ru () {
+	local output
+	output=$(command APPNAME "$@")
+	if (( $? == 99 )); then
+		cd "$path" || $?
+	else
+		printf '%s\n' "$output"
+	fi
+}
+
+setup-inline-ru () {
+	local fn
+	fn=$(declare -pf inline-ru)
+	fn="${fn/APPNAME/$(appname)}"
+	printf '%s\nalias %s="inline-ru"\n' "$fn" "$(appname)"
+}
+
+
 shopt -s nullglob
 
+e_bad_arg=1
+e_fail=2
+e_bad_command=3
+e_command_exists=4
+
 ruconfdir=~/.ru
-printpath=
+show=
 list=
 remove=()
-add=
-add_command=()
+add=()
+add_path=
 setup_completion=
 verbose=0
+time=
+mkdir=
 version=
 help=
 
 if ! (( $# )); then
 	try-help 1<&2
 	list-possible-commands 1>&2
-	exit 1
+	exit "$e_bad_arg"
 fi
 
 no_more_options=
@@ -277,7 +381,7 @@ while (( $# )); do
 	fi
 	case "$1" in
 		-s|--show)
-			printpath=1
+			show=1
 		;;
 		-l|--list)
 			list=1
@@ -288,30 +392,32 @@ while (( $# )); do
 		;;
 		-a|--add)
 			shift
-			if [[ -n $add ]]; then
-				stderr '%s: --add may not be specified more than once\n' "$(appname)"
-				exit 2
-			fi
-			if [[ -z $1 ]]; then
-				stderr '%s: invalid use of --add\n'
-				try-help
-				exit 2
-			fi
-			add=$1
-			shift
-			if [[ -z $1 ]]; then
+			if [[ -z $1 ]] || [[ -z $2 ]]; then
 				stderr '%s: --add requires at least two parameters\n'
 				try-help
-				exit 2
+				exit "$e_bad_arg"
 			fi
 			for cmdarg; do
+				add+=("$cmdarg")
 				if [[ $cmdarg == ';' ]]; then
-					shift
 					break
 				fi
-				add_command+=("$cmdarg")
 				shift
 			done
+		;;
+		-c|--cd)
+			shift
+			add_path+=("$1" "$2")
+			shift
+		;;
+		--setup-cd)
+			setup_cd=1
+		;;
+		-t|--time)
+			time=1
+		;;
+		-p|--mkdir)
+			mkdir=1
 		;;
 		--bash-completion)
 			setup_completion=1
@@ -322,23 +428,15 @@ while (( $# )); do
 		-h|--help|'-?')
 			help=1
 		;;
-		--version)
+		-V|--version)
 			version=1
 		;;
-		# example of accepting a switch of the form --key value
-		#--key)
-		#	shift; key="$1"
-		#;;
-		# example of accepting a switch of the form --key=value
-		# --key=*)
-		#	IFS='=' read -r _ key <<<"$1"; shift
-
 		--)
 			no_more_options=1
 		;;
 		--*)
 			unrecognized-option "$1"
-			exit 1
+			exit "$e_bad_arg"
 		;;
 		-*)
 			if [[ -z $unbundled ]] ; then
@@ -350,7 +448,7 @@ while (( $# )); do
 				continue
 			else
 				unrecognized-option "$1"
-				exit 1
+				exit "$e_bad_arg"
 			fi
 		;;
 		*)
@@ -376,6 +474,12 @@ if (( setup_completion )); then
 	exit 0
 fi
 
+if (( setup_cd )); then
+	setup-inline-ru
+	exit 0
+fi
+
+
 if (( list )); then
 	list
 	exit 0
@@ -385,8 +489,12 @@ if (( ${#remove[@]} )); then
 	remove "${remove[@]}"
 fi
 
-if [[ -n $add ]]; then
-	add "$add" "${add_command[@]}" || exit $?
+if (( ${#add[@]} )); then
+	add "${add[@]}"
+fi
+
+if (( ${#add_path[@]} )); then
+	add-path "${add_path[@]}"
 fi
 
 if (( ${#non_option_args[@]} )); then
