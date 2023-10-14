@@ -1,29 +1,33 @@
 #!/bin/bash
 
 #############################################################################
-# ru - a utility that lets you save/run commands (kind of like a new set of
-# aliases)
+# ru
+# save/run commands (like a new set of aliases)
 # @see https://github.com/relipse/ru
 #
 # It is similar to jo (https://github.com/relipse/jojumpoff_bash_function)
 #
 # HOW IT WORKS:
-#    Files are stored in ~/.ru
+#  Saved commands are stored in ~/.ru
 #
 # INSTALL
 # 1. chmod a+x this script
-# 2. Copy this script to a directory in your PATH
+# 2. Copy this script to a directory in your PATH e.g.:
+#    cp ru.bash ~/bin/
 # 3. For command completion add this to your ~/.bashrc:
-#     eval "$(ru --bash-completion)"
-# 4. ru -a <sn> <cmd>
-# 5. For example: ru -a lsal ls -al
+#    eval "$(ru --bash-completion)"
+# 4. For --cd support add this to your ~/.bashrc:
+#    eval "$(ru --setup-cd)"
+# 5. ru -a <shortname> <command>
+#    For example: ru -a lsal ls -al
 # 6. ru lsal
 #
 # @author relipse
-# @license Dual License: Public Domain and The MIT License (MIT)
+# @author sorpigal
+# @license  Dual License: Public Domain and The MIT License (MIT)
 #        (Use either one, whichever you prefer)
 # @version 1.2
-####################################################################
+############################################################################
 
 # external command depenencies:
 #	rm
