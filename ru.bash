@@ -84,6 +84,10 @@ appname () {
 	printf '%s\n' "${BASH_SOURCE[0]##*/}"
 }
 
+app-error () {
+	stderr -- "%s: $1" "$(appname)" "${@:2}"
+}
+
 try-help () {
 	usage | head -n 1
 	printf "Try '%s --help' for more information.\n" "$(appname)"
@@ -187,8 +191,6 @@ list-possible-commands () {
 	local command possible
 	if (( $# )); then
 		for command; do
-			printf 'No exact match for "%s"\n' "$command"
-
 			possible=("$ruconfdir"/*"$command"*)
 			if (( ${#possible[@]} )); then
 				printf 'Possible matches:\n'
@@ -206,7 +208,7 @@ remove () {
 	for command; do
 		path="$ruconfdir/$command"
 		if ! [[ -f $path ]]; then
-			stderr '%s: no such saved command: %s\n' "$(appname)" "$command"
+			app-error 'no such saved command: %s\n' "$command"
 			list-possible-commands "$command" 1>&2
 			rc="$e_bad_command"
 			continue
@@ -247,7 +249,7 @@ add-one () {
 	local command_path="$ruconfdir"/"$command"
 
 	if [[ -f $command_path ]]; then
-		stderr '%s: saved command %s already exists\n' "$(appname)" "$command"
+		app-error 'saved command %s already exists\n' "$command"
 		stderr 'to add a command with this name first remove the existing one by running\n\t%s --rm %s\n' "$(appname)" "$command"
 		return "$e_command_exists"
 	fi
@@ -262,7 +264,7 @@ add-one () {
 			printf 'added %s\n' "$command"
 		fi
 	else
-		stderr '%s: problem adding %s\n' "$(appname)" "$command"
+		app-error 'problem adding %s\n' "$command"
 		return "$e_fail"
 	fi
 }
@@ -283,7 +285,7 @@ ensure-confdir () {
 	local rc
 	mkdir -p "$ruconfdir" || {
 		rc=$?
-		stderr '%s: unable to create %s\n' "$(appname)" "$ruconfdir"
+		app-error 'unable to create %s\n' "$ruconfdir"
 		return "$rc"
 	}
 }
@@ -314,7 +316,7 @@ run-command () {
 				# and is a non-dir
 				mkdir -p "$path" 2>/dev/null || {
 					rc=$?
-					stderr '%s: unable to auto-create %s\n' "$path"
+					app-error 'unable to auto-create %s\n' "$path"
 					return "$rc"
 				}
 			fi
@@ -397,7 +399,7 @@ while (( $# )); do
 		-a|--add)
 			shift
 			if [[ -z $1 ]] || [[ -z $2 ]]; then
-				stderr '%s: --add requires at least two parameters\n'
+				app-error '--add requires at least two parameters\n'
 				try-help
 				exit "$e_bad_arg"
 			fi
