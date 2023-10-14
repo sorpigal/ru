@@ -33,10 +33,11 @@
 #	rm
 
 # exit code cheatsheet:
-#	1 - argument parse error
-#	2 - general failure
-#	3 - command not found
-#	4 - command name collision
+#	 1 - argument parse error
+#	 2 - general failure
+#	 3 - command not found
+#	 4 - command name collision
+#	99 - a --cd command was invoked
 
 usage () {
 	printf '%s\n' "Usage: $(appname) [-ars] NAME COMMAND [COMMAND-ARG...]
