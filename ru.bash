@@ -19,10 +19,6 @@
 # 5. For example: ru -a lsal ls -al
 # 6. ru lsal
 #
-#
-# BUGS
-#   Currently --verbose doesn't do anything.
-#
 # @author relipse
 # @license Dual License: Public Domain and The MIT License (MIT)
 #        (Use either one, whichever you prefer)
