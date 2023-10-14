@@ -186,9 +186,12 @@ list-possible-commands () {
 	local command possible
 	if (( $# )); then
 		for command; do
-			possible=("$ruconfdir"/*"$commmand"*)
+			printf 'No exact match for "%s"\n' "$command"
+
+			possible=("$ruconfdir"/*"$command"*)
 			if (( ${#possible[@]} )); then
-				printf 'Did you mean %s\n' "${possible[@]##*/}"
+				printf 'Possible matches:\n'
+				printf '\t%s\n' "${possible[@]##*/}"
 			fi
 		done
 	else
